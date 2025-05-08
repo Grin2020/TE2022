@@ -5,6 +5,7 @@
 ## Контактная информация
 ### Участники команды:
 <p.g.a.2019@mail.ru>
+
 <maria.tsygankova.tftl@gmail.com>
 ### Руководитель команды:
 <KosachnkoSV@ya.ru>
