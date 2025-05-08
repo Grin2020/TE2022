@@ -1,2 +1,2 @@
 ### Команда "Таёжные Ёжики" имела не постоянный состав, этот раздел - часть работы одного из первых её членов...  
-![Иллюстрация к проекту](![Image alt](https://github.com/Grin2020/TE2022/raw/main/WorksBeslnGetagazov/)
+![Image alt](https://github.com/Grin2020/TE2022/raw/main/WorksBeslnGetagazov/Фото членов команды.jpg)
