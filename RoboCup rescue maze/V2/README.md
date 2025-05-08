@@ -1,5 +1,5 @@
 # НОВАЯ ВЕРСИЯ РОБОТА
-![Предварительная фотка](https://github.com/Grin2020/TE2022/raw/main/RoboCup rescue maze/V2/foto/photo_5237791344678793614_y.jpg)
+![Предварительная фотка](https://github.com/Grin2020/TE2022/raw/main/RoboCup+rescue+maze/V2/foto/photo_5237791344678793614_y.jpg)
 ## Arduino IDE and RPI PICO: 
   Add the boards and setup the 
   ```
