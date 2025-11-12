@@ -11,6 +11,11 @@ public:
     Eigen::Vector2d gridToWorld(int gx, int gy) const;
     std::pair<int,int> worldToGrid(double x, double y) const;
 
+    int getCell(int x, int y) const {
+       if (x < 0 || x >= width || y < 0 || y >= height) return -1; // за границами карты
+       return grid[x][y];
+     }
+
     int width, height;
     double resolution;
 

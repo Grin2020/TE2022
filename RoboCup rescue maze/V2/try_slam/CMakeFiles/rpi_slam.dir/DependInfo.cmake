@@ -15,6 +15,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/grin/try_slam/src/MotorController.cpp" "CMakeFiles/rpi_slam.dir/src/MotorController.cpp.o" "gcc" "CMakeFiles/rpi_slam.dir/src/MotorController.cpp.o.d"
   "/home/grin/try_slam/src/SLAM.cpp" "CMakeFiles/rpi_slam.dir/src/SLAM.cpp.o" "gcc" "CMakeFiles/rpi_slam.dir/src/SLAM.cpp.o.d"
   "/home/grin/try_slam/src/SerialBus.cpp" "CMakeFiles/rpi_slam.dir/src/SerialBus.cpp.o" "gcc" "CMakeFiles/rpi_slam.dir/src/SerialBus.cpp.o.d"
+  "/home/grin/try_slam/src/mySerial.cpp" "CMakeFiles/rpi_slam.dir/src/mySerial.cpp.o" "gcc" "CMakeFiles/rpi_slam.dir/src/mySerial.cpp.o.d"
   )
 
 # Targets to which this target links.

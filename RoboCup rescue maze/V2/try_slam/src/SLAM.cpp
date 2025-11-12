@@ -1,43 +1,158 @@
+// src/SLAM.cpp
 #include "SLAM.hpp"
 #include <cmath>
+#include <iostream>
+#include <unordered_map>
+#include <vector>
+#include <algorithm>
 
 SLAM::SLAM(LidarReader& lidar_, Map& map_, MotorController& motor_, const RobotConfig& cfg)
 : lidar(lidar_), map(map_), motor(motor_), config(cfg), pose(0,0,0) {}
 
+// polarToCartesian: angle в радианах, distance в метрах
 Eigen::Vector2d SLAM::polarToCartesian(double angle, double distance) {
-    double rad = angle*M_PI/180.0;
-    return Eigen::Vector2d(distance*cos(rad), distance*sin(rad));
+    return Eigen::Vector2d(distance * std::cos(angle), distance * std::sin(angle));
 }
 
+// вспомогательная ф-ция: медиана вектора
+static double median_of_vector(std::vector<double>& v) {
+    if (v.empty()) return 0.0;
+    std::sort(v.begin(), v.end());
+    size_t n = v.size();
+    return (n % 2 == 1) ? v[n/2] : 0.5 * (v[n/2 - 1] + v[n/2]);
+}
+
+// Сопоставление сканов: matching-by-angle + медиана смещений
 void SLAM::scanMatch(const std::vector<LidarPoint>& newScan) {
-    if(lastScan.empty()){ lastScan = newScan; return; }
+    if(newScan.empty()) return;
 
-    std::vector<Eigen::Vector2d> prevPts,newPts;
-    for(auto& p:lastScan) prevPts.push_back(polarToCartesian(p.angle,p.distance));
-    for(auto& p:newScan) newPts.push_back(polarToCartesian(p.angle,p.distance));
+    // если нет предыдущего скана — сохраняем и выходим
+    if(lastScan.empty()) {
+        lastScan = newScan;
+        return;
+    }
 
-    Eigen::Vector2d delta(0,0);
-    int n = std::min(prevPts.size(),newPts.size());
-    for(int i=0;i<n;++i) delta += (prevPts[i]-newPts[i]);
-    delta/=n;
+    // Построим хеш-таблицы по ключу = angle в тысячных радиана (целое) -> индекс
+    // Так мы позволяем небольшие расхождения углов, но сопоставляем "по углу".
+    const double ANGLE_SCALE = 1000.0; // можно увеличить если надо точнее
+    std::unordered_map<int, Eigen::Vector2d> prevMap;
+    prevMap.reserve(lastScan.size()*2);
+    for (const auto &p : lastScan) {
+        if (!std::isfinite(p.angle) || !std::isfinite(p.distance)) continue;
+        if (p.distance <= 0.001 || p.distance > 50.0) continue;
+        int key = static_cast<int>(std::round(p.angle * ANGLE_SCALE));
+        prevMap[key] = polarToCartesian(p.angle, p.distance);
+    }
 
-    pose(0)+=delta(0);
-    pose(1)+=delta(1);
+    // Собираем смещения для тех углов, которые есть в обоих сканах
+    std::vector<double> dxs, dys;
+    dxs.reserve(256); dys.reserve(256);
 
+    for (const auto &p : newScan) {
+        if (!std::isfinite(p.angle) || !std::isfinite(p.distance)) continue;
+        if (p.distance <= 0.001 || p.distance > 50.0) continue;
+        int key = static_cast<int>(std::round(p.angle * ANGLE_SCALE));
+        auto it = prevMap.find(key);
+        if (it == prevMap.end()) continue;
+        Eigen::Vector2d prevPt = it->second;
+        Eigen::Vector2d newPt = polarToCartesian(p.angle, p.distance);
+        // смещение prev - new (в координатах робота)
+        dxs.push_back(prevPt.x() - newPt.x());
+        dys.push_back(prevPt.y() - newPt.y());
+    }
+
+    // Нужна достаточная статистика, иначе игнорируем
+    const size_t MIN_MATCHES = 25; // порог, можно настроить
+    if (dxs.size() < MIN_MATCHES || dys.size() < MIN_MATCHES) {
+        // недостаточно совпадений — не применяем коррекцию, но обновляем lastScan
+        lastScan = newScan;
+        return;
+    }
+
+    // Вычисляем медианы — они более устойчивы к выбросам
+    double med_dx = median_of_vector(dxs);
+    double med_dy = median_of_vector(dys);
+
+    // Защита от NaN/Inf
+    if (!std::isfinite(med_dx)) med_dx = 0.0;
+    if (!std::isfinite(med_dy)) med_dy = 0.0;
+
+    // Применяем смещение к позе (только X,Y)
+    pose(0) += med_dx;
+    pose(1) += med_dy;
+
+    // Обновляем lastScan
     lastScan = newScan;
-}
 
-Eigen::Vector3d SLAM::getPose() const { return pose; }
+    Eigen::Vector3d currentPose = getPose();
+    std::cout << "Pose: " << currentPose.transpose() << "\n";
+
+}
 
 void SLAM::step() {
     std::vector<LidarPoint> scan;
-    if(!lidar.readScan(scan)) return;
+    if (!lidar.readScan(scan) || scan.empty()) {
+        // нет новых данных
+        return;
+    }
 
+    // небольшая защита — если очень мало лучей, пропускаем
+    if (scan.size() < 8) {
+        // но всё равно запоминаем последний скан для будущего matching'а
+        lastScan = scan;
+        return;
+    }
+
+// ===== Debug: проверить скан =====
+std::cout << "[DEBUG] Scan points received: " << scan.size() << std::endl;
+for (const auto &p : scan) {
+    std::cout << "angle=" << p.angle << " rad, dist=" << p.distance << " m" << std::endl;
+}
+
+    // Применяем сопоставление (обновит pose)
     scanMatch(scan);
 
-    std::vector<Eigen::Vector2d> points;
-    for(auto& p:scan) points.push_back(polarToCartesian(p.angle,p.distance));
-    map.update(points, pose);
+    // Проверяем pose
+    Eigen::Vector3d currentPose = getPose();
+    if (!std::isfinite(currentPose(0)) ||
+        !std::isfinite(currentPose(1)) ||
+        !std::isfinite(currentPose(2))) {
+        return;
+    }
 
-    motor.setSpeed(config.maxSpeed/2, config.maxSpeed/2);
+    // Сформируем вектор точек в локальной системе, затем обновим map с позой робота
+    std::vector<Eigen::Vector2d> points;
+    points.reserve(scan.size());
+    for (const auto &p : scan) {
+        if (!std::isfinite(p.angle) || !std::isfinite(p.distance)) continue;
+        // фильтруем по разумным границам
+        if (p.distance <= 0.01 || p.distance > 50.0) continue;
+        points.push_back(polarToCartesian(p.angle, p.distance));
+    }
+// ===== Debug: проверить точки для карты =====
+for (const auto &p : scan) {
+    points.push_back(polarToCartesian(p.angle, p.distance));
 }
+
+std::cout << "[DEBUG] Points to map: " << points.size() << std::endl;
+for (const auto &pt : points) {
+    std::cout << "x=" << pt.x() << " y=" << pt.y() << std::endl;
+}
+
+    if (!points.empty()) {
+        map.update(points, currentPose);
+    }
+// ===== Debug: проверить grid =====
+int occupied = 0;
+for (int x = 0; x < map.width; ++x)
+    for (int y = 0; y < map.height; ++y)
+        if (!map.isFree(x, y)) ++occupied;
+
+std::cout << "[DEBUG] Occupied cells in map: " << occupied << std::endl;
+
+
+    // На время разработки ставим минимальную скорость — можно настроить в RobotConfig
+    motor.setSpeed(config.maxSpeed / 4, config.maxSpeed / 4);
+}
+
+Eigen::Vector3d SLAM::getPose() const { return pose; }

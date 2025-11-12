@@ -297,6 +297,30 @@ src/SerialBus.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rpi_slam.dir/build.make CMakeFiles/rpi_slam.dir/src/SerialBus.cpp.s
 .PHONY : src/SerialBus.cpp.s
 
+src/mySerial.o: src/mySerial.cpp.o
+.PHONY : src/mySerial.o
+
+# target to build an object file
+src/mySerial.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rpi_slam.dir/build.make CMakeFiles/rpi_slam.dir/src/mySerial.cpp.o
+.PHONY : src/mySerial.cpp.o
+
+src/mySerial.i: src/mySerial.cpp.i
+.PHONY : src/mySerial.i
+
+# target to preprocess a source file
+src/mySerial.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rpi_slam.dir/build.make CMakeFiles/rpi_slam.dir/src/mySerial.cpp.i
+.PHONY : src/mySerial.cpp.i
+
+src/mySerial.s: src/mySerial.cpp.s
+.PHONY : src/mySerial.s
+
+# target to generate assembly for a file
+src/mySerial.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rpi_slam.dir/build.make CMakeFiles/rpi_slam.dir/src/mySerial.cpp.s
+.PHONY : src/mySerial.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -327,6 +351,9 @@ help:
 	@echo "... src/SerialBus.o"
 	@echo "... src/SerialBus.i"
 	@echo "... src/SerialBus.s"
+	@echo "... src/mySerial.o"
+	@echo "... src/mySerial.i"
+	@echo "... src/mySerial.s"
 .PHONY : help
 
 

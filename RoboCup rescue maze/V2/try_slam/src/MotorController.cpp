@@ -2,7 +2,7 @@
 #include <sstream>
 #include <algorithm>
 
-MotorController::MotorController(SerialBus& bus_, const RobotConfig& cfg)
+MotorController::MotorController(mySerial& bus_, const RobotConfig& cfg)
 : bus(bus_), config(cfg) {}
 
 void MotorController::setSpeed(float left, float right) {
@@ -10,6 +10,6 @@ void MotorController::setSpeed(float left, float right) {
     right = std::clamp(right, -(float)config.maxSpeed, (float)config.maxSpeed);
 
     std::stringstream ss;
-    ss << left << ";" << right; 
-    bus.writeMotor(ss.str());
+    ss <<"M:"<< left << ";" << right; 
+    bus.SendLine(ss.str());
 }

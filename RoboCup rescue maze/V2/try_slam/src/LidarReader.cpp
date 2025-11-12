@@ -1,23 +1,174 @@
 #include "LidarReader.hpp"
-#include <sstream>
+#include <cmath>
+#include <cstring>
+#include <iostream>
+//
+LidarReader::LidarReader(mySerial* serial) : serial(serial), running(true) {
+    uartThread = std::thread(&LidarReader::uartReaderThread, this);
+}
 
-LidarReader::LidarReader(SerialBus& bus_) : bus(bus_) {}
+LidarReader::~LidarReader() {
+    running = false;
+    if (uartThread.joinable())
+        uartThread.join();
+}
+
+
+void LidarReader::uartReaderThread() {
+    unsigned char buf[4096];
+    std::vector<unsigned char> buffer; // Локальный буфер для накопления данных
+    long long mo=pow(10,11)+7;
+    counter=0;
+    while (running) {
+        int n = serial->ReceiveNonBlocking(buf, sizeof(buf));
+        if (n <= 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+
+        buffer.insert(buffer.end(), buf, buf + n);
+
+        size_t i = 0;
+        while (i < buffer.size()) {
+            // Ищем маркер начала луча
+            if (buffer[i] != 0xAA) { 
+                ++i; 
+                continue; 
+            }
+
+            // Проверяем, есть ли достаточно байт для одного луча
+            if (i + 7 > buffer.size()) break; // Ждём следующего чтения
+
+            // Проверяем, нет ли "вложенного" 0xAA в данных
+            bool corrupted = false;
+            for (size_t j = i + 1; j < i + 7; ++j) {
+                if (buffer[j] == 0xAA) {
+                    corrupted = true;
+                    break;
+                }
+            }
+
+            if (corrupted) {
+                // Сдвигаемся на найденный новый маркер
+                i += 1;
+                continue;
+            }
+
+            // Всё ок, парсим угол и дистанцию
+            float angle_deg;
+            short dist_mm;
+            std::memcpy(&angle_deg, &buffer[i + 1], sizeof(float));
+            std::memcpy(&dist_mm, &buffer[i + 5], sizeof(short));
+
+            if (dist_mm > 0 && angle_deg >= 0 && angle_deg <= 360) {
+                LidarPoint p;
+                p.angle = angle_deg * M_PI / 180.0;
+                p.distance = dist_mm / 1000.0;
+
+                int angleKey = static_cast<int>(angle_deg * 100); // ключ по углу
+                std::lock_guard<std::mutex> lock(scanMutex);
+                counter++;
+                if(counter>mo)counter-=mo;
+                time[angleKey]=counter;
+                if(p.distance<7.5) latestScan[angleKey] = p;
+            }
+
+            i += 7; // Переходим к следующему возможному лучу
+        }
+
+        // Оставляем в буфере неполные данные для следующего прохода
+        if (i > 0) buffer.erase(buffer.begin(), buffer.begin() + i);
+    }
+}
+
+
+/*
+void LidarReader::uartReaderThread() {
+    unsigned char buf[4096];
+
+    std::vector<unsigned char> buffer; // накопительный буфер для пакетов
+
+    while (running) {
+        int n = serial->ReceiveNonBlocking(buf, sizeof(buf));
+        if (n <= 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+
+        buffer.insert(buffer.end(), buf, buf + n);
+
+        // разбираем накопленный буфер
+        size_t i = 0;
+        while (i + 7 <= buffer.size()) {
+            if (buffer[i] != 0xAA) { ++i; continue; } // ищем маркер луча
+
+            float angle_deg;
+            short dist_mm;
+            std::memcpy(&angle_deg, &buffer[i + 1], sizeof(float));
+            std::memcpy(&dist_mm, &buffer[i + 5], sizeof(short));
+
+            if (dist_mm > 0 && angle_deg >= 0 && angle_deg <= 360) {
+                LidarPoint p;
+                p.angle = angle_deg * M_PI / 180.0;
+                p.distance = dist_mm / 1000.0;
+
+                int angleKey = static_cast<int>(angle_deg * 100); // индекс по углу
+                std::lock_guard<std::mutex> lock(scanMutex);
+                latestScan[angleKey] = p;
+            }
+
+            i += 7; // следующий луч
+        }
+
+        if (i > 0)
+            buffer.erase(buffer.begin(), buffer.begin() + i);
+    }
+}*/
 
 bool LidarReader::readScan(std::vector<LidarPoint>& scan) {
+    std::lock_guard<std::mutex> lock(scanMutex);
     scan.clear();
-    std::string line;
-    double last_angle = -1;
-
-    for (;;) {
-        if (!bus.readLine(line)) return false;
-        std::stringstream ss(line);
-        double angle, distance;
-        char sep;
-        if (!(ss >> angle >> sep >> distance)) continue;
-        scan.push_back({angle, distance});
-        if (angle < last_angle) break;
-        last_angle = angle;
-        if (scan.size() > 4000) break;
-    }
-    return true;
+    for (auto& kv : latestScan)
+//          scan.push_back(kv.second);
+        if(time[kv.first]-counter>-3000) scan.push_back(kv.second);
+    std::cout<<"point_cloude:"<<latestScan.size()<<std::endl;
+    return !scan.empty();
 }
+
+/*
+bool LidarReader::readScan(std::vector<LidarPoint>& scan) {
+    scan.clear();
+    if (!serial || !serial->IsOpen()) return false;
+
+    unsigned char temp[2048];
+    int n = serial->ReceiveNonBlocking(temp, sizeof(temp));
+    if (n <= 0) return false;
+
+    buffer.insert(buffer.end(), temp, temp + n);
+
+    const size_t PACKET_SIZE = 1 + 4 + 2; // 0xAA + float(angle) + short(dist)
+    size_t i = 0;
+
+    while (i + PACKET_SIZE <= buffer.size()) {
+        if (buffer[i] != 0xAA) { ++i; continue; }
+
+        float angle_deg;
+        short dist_mm;
+        std::memcpy(&angle_deg, &buffer[i + 1], sizeof(float));
+        std::memcpy(&dist_mm, &buffer[i + 5], sizeof(short));
+
+        if (dist_mm > 0 && angle_deg >= 0 && angle_deg <= 360) {
+            LidarPoint p;
+            p.angle = angle_deg * M_PI / 180.0;
+            p.distance = dist_mm / 1000.0;
+            scan.push_back(p);
+        }
+
+        i += PACKET_SIZE;
+    }
+
+    if (i > 0) buffer.erase(buffer.begin(), buffer.begin() + i);
+
+    return !scan.empty();
+}
+*/

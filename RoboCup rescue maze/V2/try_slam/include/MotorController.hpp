@@ -1,13 +1,13 @@
 #pragma once
-#include "SerialBus.hpp"
+#include "mySerial.h"
 #include "RobotConfig.hpp"
 
 class MotorController {
 public:
-    MotorController(SerialBus& bus, const RobotConfig& config);
+    MotorController(mySerial& bus, const RobotConfig& config);
     void setSpeed(float left, float right); // -maxSpeed .. maxSpeed
 
 private:
-    SerialBus& bus;
+    mySerial& bus;
     const RobotConfig& config;
 };

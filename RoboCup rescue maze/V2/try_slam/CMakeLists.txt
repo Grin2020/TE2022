@@ -15,6 +15,7 @@ add_executable(rpi_slam
     src/Map.cpp
     src/SLAM.cpp
     src/Explorer.cpp
+    src/mySerial.cpp
     main.cpp
 )
 
