@@ -32,11 +32,12 @@ int main(int argc, char** argv) {
         cfg.tankTurnThreshold = 0.35; // rad ~20deg
 
         // Открой порт (укажи свой порт/baud если нужно)
-        std::string port = "/dev/ttyAMA0";
+        std::string port = "/dev/ttyUSB0";
         unsigned int baud = 115200;
         mySerial serial(port, baud);
-        LidarReader lidar(&serial);
-        MotorController motor(serial, cfg);
+        mySerial pico("/dev/ttyAMA0",baud);
+        LidarReader lidar(&serial,&pico);
+        MotorController motor(pico, cfg);
         Map map(500, 500, 0.05); // 25m x 25m при resolution=0.05
         map.inflateObstacles(cfg.width, cfg.length);
         SLAM slam(lidar, map, motor, cfg);

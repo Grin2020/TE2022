@@ -10,6 +10,6 @@ void MotorController::setSpeed(float left, float right) {
     right = std::clamp(right, -(float)config.maxSpeed, (float)config.maxSpeed);
 
     std::stringstream ss;
-    ss <<"M:"<< left << ";" << right; 
+    ss <<"M:"<< (int)left << ";" << (int)right<<";"; 
     bus.SendLine(ss.str());
 }

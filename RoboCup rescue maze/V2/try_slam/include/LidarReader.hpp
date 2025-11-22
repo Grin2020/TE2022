@@ -13,12 +13,15 @@ struct LidarPoint {
 
 class LidarReader {
 public:
-    explicit LidarReader(mySerial* serial);
+    explicit LidarReader(mySerial* serial,mySerial* pico);
     ~LidarReader();
     bool readScan(std::vector<LidarPoint>& scan);
+    double getright();
+    double getleft();
 
 private:
     mySerial* serial;
+    mySerial* pico;
     std::map<int, LidarPoint> latestScan; // угол -> точка
     std::map<int,int> time;
     std::mutex scanMutex;
@@ -27,4 +30,5 @@ private:
 
     void uartReaderThread(); // поток чтения UART
     long long counter;
+    double right,left;
 };

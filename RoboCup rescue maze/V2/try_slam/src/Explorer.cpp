@@ -2,13 +2,14 @@
 #include <queue>
 #include <cmath>
 #include <algorithm>
-
+using namespace std;
 Explorer::Explorer(Map& map_, SLAM& slam_, MotorController& motor_, const RobotConfig& cfg)
 : map(map_), slam(slam_), motor(motor_), config(cfg) {}
 
 void Explorer::step() {
     Eigen::Vector2d robotPos = slam.getPose().head<2>();
 
+    cout<<"_____________________________________________________________________________________________________________"<<endl;
     // Если путь пуст, ищем новый фронтир
     if(currentPath.empty()){
         Eigen::Vector2d target = findNextFrontier();
@@ -19,6 +20,7 @@ void Explorer::step() {
             std::cout << "[DEBUG] No new frontier found, stopping" << std::endl;
             currentPath.clear();
             motor.setSpeed(0.0, 0.0);
+            cout<<"T: "<<fixed<<(target-robotPos).norm()<<" OAOAOAOAOAOOAOAOAOAOAOAOAOOAOAOAOAOAOAOAOOAAOOAOAOAOAOOAOOAOAOOAOAOAOAO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
             return;
         }
 
@@ -132,7 +134,7 @@ Eigen::Vector2d Explorer::findNextFrontier() {
 
                 if (frontier) {
                     double dist = std::hypot(x - rx, y - ry);
-                    if (dist < bestDist && dist > 3.0) {
+                    if (dist < bestDist && dist > 0.5) {//3.0
                         bestDist = dist;
                         bestFrontier = Eigen::Vector2d(x, y);
                     }
@@ -252,8 +254,11 @@ std::vector<Eigen::Vector2d> Explorer::planPath(const Eigen::Vector2d& start, co
     return path;
 }
 void Explorer::moveAlongPath() {
-    if(currentPath.empty()) return;
-
+    if(currentPath.empty()){
+	cout<<"currentPATH.epmty()!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
+	return;
+    }
+    cout<<"I IN MOVEALONGPATH!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<endl;
     Eigen::Vector2d pos = slam.getPose().head<2>();
     double robotYaw = slam.getPose()(2);
 
@@ -263,11 +268,11 @@ void Explorer::moveAlongPath() {
     Eigen::Vector2d dir = target - pos;
     double distance = dir.norm();
 
-    if(distance < 0.01) {
+/*    if(distance < 0.01) {
         currentPath.erase(currentPath.begin());
         motor.setSpeed(0.0, 0.0);
         return;
-    }
+    }*/
 
     double angle_to_target = atan2(dir(1), dir(0));
     double angle_error = angle_to_target - robotYaw;
@@ -293,11 +298,15 @@ void Explorer::moveAlongPath() {
 
         double correction = config.pid_kp*angle_error + config.pid_ki*integral + config.pid_kd*derivative;
         double baseSpeed = config.maxSpeed/2;
-
+        std::cout<<"CORRECTION:"<<correction<<std::endl;
         left  = std::clamp(baseSpeed - correction, -config.maxSpeed, config.maxSpeed);
         right = std::clamp(baseSpeed + correction, -config.maxSpeed, config.maxSpeed);
     }
-
+    std::cout << "[MOVE] angle_error=" << angle_error; 
+    std::cout<< " dist=" << distance; 
+    std::cout<< " left=" << left << " right=" << right << std::endl;
+    std::cout<< " pose=" << pos.transpose();
+    std::cout<< " target=" << target.transpose() << std::endl;
     motor.setSpeed(left, right);
 }
 
